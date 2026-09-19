@@ -27,7 +27,7 @@ export default function Hero({ onSearch }: HeroProps) {
   };
 
   return (
-    <section className="relative min-h-[620px] flex items-center overflow-hidden pt-16">
+    <section className="relative min-h-[620px] w-full flex items-center overflow-hidden pt-16">
       {/* Background */}
       <div className="absolute inset-0 z-0">
         <img
@@ -43,8 +43,8 @@ export default function Hero({ onSearch }: HeroProps) {
       <div className="absolute top-1/4 left-10 w-64 h-64 bg-purple-500/15 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-rose-500/15 rounded-full blur-3xl" />
 
-      {/* Content — left aligned */}
-      <div className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      {/* Content — Full screen width container */}
+      <div className="relative z-10 w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-10 py-20">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/20 text-rose-400 text-sm font-medium mb-6">
             <Music className="w-4 h-4" />
@@ -64,7 +64,7 @@ export default function Hero({ onSearch }: HeroProps) {
             Discover the best events, book your tickets and be part of unforgettable moments.
           </p>
 
-          {/* Floating Search Bar — capsule style (unchanged) */}
+          {/* Floating Search Bar */}
           <div className="bg-[#0a0a0f]/60 backdrop-blur-xl rounded-full border border-purple-500/30 shadow-2xl shadow-purple-500/10 p-2 max-w-2xl">
             <div className="flex flex-col sm:flex-row items-stretch gap-2">
               {/* Category */}
@@ -116,7 +116,7 @@ export default function Hero({ onSearch }: HeroProps) {
             </div>
           </div>
 
-          {/* Trust Badges — replacing the duplicate filter pills */}
+          {/* Trust Badges */}
           <div className="flex flex-wrap items-center gap-4 mt-6">
             {trustBadges.map((badge) => {
               const Icon = badge.icon;

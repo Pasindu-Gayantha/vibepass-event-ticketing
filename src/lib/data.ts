@@ -1,14 +1,34 @@
 import { supabase } from '@/lib/supabase';
 import type { VibeEvent, TicketTier, Booking, OrganizerInquiry, BookingWithDetails } from '@/types';
 
+
 export async function fetchEvents(): Promise<VibeEvent[]> {
   const { data, error } = await supabase
     .from('events')
-    .select('*')
-    .eq('status', 'active')
+    .select('*, ticket_tiers(price)')
+    .in('status', ['published', 'active'])
     .order('event_date', { ascending: true });
+
   if (error) throw error;
-  return (data ?? []) as VibeEvent[];
+
+  return ((data ?? []) as any[]).map((e) => {
+    let minPrice = Number(e.starting_price || e.price || 0);
+
+   
+    if ((!minPrice || isNaN(minPrice)) && Array.isArray(e.ticket_tiers) && e.ticket_tiers.length > 0) {
+      const prices = e.ticket_tiers
+        .map((t: any) => Number(t.price))
+        .filter((p: number) => !isNaN(p) && p > 0);
+      if (prices.length > 0) {
+        minPrice = Math.min(...prices);
+      }
+    }
+
+    return {
+      ...e,
+      starting_price: minPrice > 0 ? minPrice : 2500,
+    };
+  }) as VibeEvent[];
 }
 
 export async function fetchEventTiers(eventId: string): Promise<TicketTier[]> {
@@ -118,7 +138,7 @@ export async function fetchAdminStats(): Promise<{
 }> {
   const [bookingsRes, eventsRes, inquiriesRes] = await Promise.all([
     supabase.from('bookings').select('total_amount, quantity, status'),
-    supabase.from('events').select('id, status').eq('status', 'active'),
+    supabase.from('events').select('id, status').in('status', ['published', 'active']),
     supabase.from('organizer_inquiries').select('id, status').eq('status', 'pending'),
   ]);
 

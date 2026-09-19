@@ -26,12 +26,15 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
 
   const filteredEvents = useMemo(() => {
     return events.filter((e) => {
-      if (activeCategory && e.category !== activeCategory) return false;
+      const cat = (e as any).category || '';
+      if (activeCategory && cat !== activeCategory) return false;
       if (searchFilters.location) {
         const loc = searchFilters.location.toLowerCase();
-        if (!e.location.toLowerCase().includes(loc) && !e.venue.toLowerCase().includes(loc)) return false;
+        const eventLoc = ((e as any).location || '').toLowerCase();
+        const eventVenue = (e.venue || '').toLowerCase();
+        if (!eventLoc.includes(loc) && !eventVenue.includes(loc)) return false;
       }
-      if (searchFilters.date) {
+      if (searchFilters.date && e.event_date) {
         const eventDate = new Date(e.event_date).toISOString().split('T')[0];
         if (eventDate !== searchFilters.date) return false;
       }
@@ -40,14 +43,16 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
   }, [events, activeCategory, searchFilters]);
 
   return (
-    <div>
+    <div className="w-full min-h-screen">
       <Hero onSearch={handleSearch} />
 
-      {/* Trending Carousel */}
-      <TrendingCarousel events={events} onEventClick={onEventClick} />
+      {/* Trending Carousel Container - Screen එකට ගැළපෙන පරිදි පුළුල් කර ඇත */}
+      <div className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-10">
+        <TrendingCarousel events={events} onEventClick={onEventClick} />
+      </div>
 
       {/* Events Section */}
-      <section id="events-grid" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 scroll-mt-20">
+      <section id="events-grid" className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-10 py-12 scroll-mt-20">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-white mb-2">
             {activeCategory ? activeCategory === 'Concert' ? 'Concerts' : activeCategory === 'EDM' ? 'EDM Festivals' : 'Acoustic Nights' : 'Popular Events'}
@@ -65,7 +70,7 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
             <p className="text-gray-400 text-lg">No events match your search. Try different filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredEvents.map((event) => (
               <EventCard key={event.id} event={event} onClick={() => onEventClick(event)} />
             ))}

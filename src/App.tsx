@@ -15,6 +15,7 @@ import UserAuthModal from '@/components/UserAuthModal';
 import EditProfileModal from '@/components/EditProfileModal';
 import Footer from '@/components/Footer';
 import { fetchEvents, fetchEventWithTiers, createBooking, generateBookingRef } from '@/lib/data';
+import { supabase } from '@/lib/supabase';
 import type { VibeEvent, TicketTier, User, BookingWithDetails } from '@/types';
 
 type Screen = 'main' | 'confirmation';
@@ -183,7 +184,6 @@ export default function App() {
   const handleAuthSuccess = (u: User) => {
     setUser(u);
     setShowAuth(false);
-    // Preload demo tickets if this is the demo user
     const isDemoUser = u.email.toLowerCase() === DEMO_USER.email;
     setSessionTickets(isDemoUser ? [...PRELOADED_DEMO_TICKETS] : []);
   };
@@ -254,7 +254,6 @@ export default function App() {
       paymentMethod: details.paymentMethod,
     });
 
-    // Append new ticket to session tickets for logged-in users
     if (user) {
       const newTicket: BookingWithDetails = {
         id: `session-${Date.now()}`,
@@ -289,8 +288,37 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCreateEvent = (event: VibeEvent) => {
-    setEvents((prev) => [...prev, event]);
+  // Live Supabase Sync for Admin Create Event
+  const handleCreateEvent = async (event: VibeEvent) => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .insert([
+          {
+            title: event.title,
+            description: event.description || '',
+            venue: event.venue,
+            event_date: event.event_date,
+            banner_url: event.banner_url,
+            category_id: (event as any).category_id || 'cat-concerts',
+            status: 'published',
+            starting_price: event.starting_price || 2500,
+            total_tickets: (event as any).total_tickets || 500,
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.warn('Supabase insert note (using local state fallback):', error.message);
+      } else {
+        console.log('Event successfully saved to Supabase:', data);
+      }
+    } catch (err) {
+      console.error('Failed to insert into Supabase:', err);
+    }
+
+    // UI state updates instantly
+    setEvents((prev) => [event, ...prev]);
     setToast('Event published successfully!');
     setTimeout(() => setToast(null), 3000);
   };

@@ -20,7 +20,16 @@ const categoryStyles: Record<string, string> = {
 };
 
 export default function EventCard({ event, onClick }: EventCardProps) {
-  const urgency = getUrgencyLabel(event);
+  const urgency = getUrgencyLabel ? getUrgencyLabel(event) : { color: 'rose', text: 'Selling Fast' };
+  const eventDateObj = event.event_date ? new Date(event.event_date) : new Date();
+  const dateFormatted = event.event_date ? formatDate(event.event_date) : '';
+  const firstWord = dateFormatted ? dateFormatted.split(' ')[0] : 'UPCOMING';
+  const categoryName = (event as any).category || 'Concert';
+  const lineupList = Array.isArray((event as any).lineup) ? (event as any).lineup : [];
+  
+  // Database එකෙන් string හෝ number ආකාරයෙන් ලැබෙන මිල අගය ආරක්ෂිතව parse කරගැනීම
+  const rawPrice = Number((event as any).starting_price ?? (event as any).price ?? 0);
+  const validPrice = isNaN(rawPrice) ? 0 : rawPrice;
 
   return (
     <button
@@ -30,7 +39,7 @@ export default function EventCard({ event, onClick }: EventCardProps) {
       {/* Banner */}
       <div className="relative h-48 overflow-hidden">
         <img
-          src={event.banner_url}
+          src={event.banner_url || 'https://images.pexels.com/photos/167636/pexels-photo-167636.jpeg?auto=compress&cs=tinysrgb&w=400'}
           alt={event.title}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
@@ -39,19 +48,19 @@ export default function EventCard({ event, onClick }: EventCardProps) {
         {/* Date Badge */}
         <div className="absolute top-3 left-3 bg-[#0a0a0f]/80 backdrop-blur-md rounded-xl px-3 py-2 border border-purple-500/20 text-center">
           <div className="text-rose-400 text-xs font-semibold uppercase">
-            {formatDate(event.event_date).split(' ')[0]}
+            {firstWord}
           </div>
           <div className="text-white text-lg font-bold leading-none">
-            {new Date(event.event_date).getDate()}
+            {eventDateObj.getDate()}
           </div>
           <div className="text-gray-400 text-[10px] uppercase">
-            {new Date(event.event_date).toLocaleDateString('en-US', { month: 'short' })}
+            {eventDateObj.toLocaleDateString('en-US', { month: 'short' })}
           </div>
         </div>
 
         {/* Category Badge */}
-        <div className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-md ${categoryStyles[event.category]}`}>
-          {event.category}
+        <div className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-md ${categoryStyles[categoryName] || 'bg-purple-500/20 text-purple-300'}`}>
+          {categoryName}
         </div>
       </div>
 
@@ -63,18 +72,26 @@ export default function EventCard({ event, onClick }: EventCardProps) {
           </h3>
           <div className="flex items-center gap-1.5 text-gray-400 text-sm mt-1">
             <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="truncate">{event.venue}, {event.location}</span>
+            <span className="truncate">
+              {event.venue || 'Colombo'}{(event as any).location ? `, ${(event as any).location}` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-gray-400 text-sm mt-0.5">
             <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{formatDate(event.event_date)}</span>
+            <span>{dateFormatted || 'Date TBA'}</span>
           </div>
         </div>
 
-        {/* Lineup */}
-        <p className="text-gray-500 text-xs truncate">
-          {event.lineup.slice(0, 3).join(' · ')}
-        </p>
+        {/* Lineup - Safe array fallback */}
+        {lineupList.length > 0 ? (
+          <p className="text-gray-500 text-xs truncate">
+            {lineupList.slice(0, 3).join(' · ')}
+          </p>
+        ) : (
+          <p className="text-gray-500 text-xs truncate">
+            {(event.description || 'Exclusive Live Musical Experience').slice(0, 50)}...
+          </p>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t border-purple-500/10">
@@ -82,11 +99,11 @@ export default function EventCard({ event, onClick }: EventCardProps) {
             <Ticket className="w-4 h-4 text-rose-400" />
             <div>
               <div className="text-gray-500 text-[10px] uppercase">From</div>
-              <div className="text-white font-bold text-sm">{formatLKR(event.starting_price)}</div>
+              <div className="text-white font-bold text-sm">{formatLKR(validPrice)}</div>
             </div>
           </div>
-          <div className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${urgencyStyles[urgency.color]}`}>
-            {urgency.text}
+          <div className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${urgencyStyles[urgency?.color] || urgencyStyles.rose}`}>
+            {urgency?.text || 'Available'}
           </div>
         </div>
       </div>
