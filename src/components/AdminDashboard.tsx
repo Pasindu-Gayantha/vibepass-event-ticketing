@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   DollarSign, Ticket, Music, MessageSquare, ScanLine,
-  CheckCircle2, XCircle, AlertCircle, Loader2, Clock, LogOut,
+  CheckCircle2, XCircle, AlertCircle, Loader2, Clock, LogOut, Plus,
 } from 'lucide-react';
 import { fetchAdminStats, fetchRecentBookings, fetchInquiries, validateTicket, redeemTicket, updateInquiryStatus } from '@/lib/data';
 import { formatLKR, formatDate } from '@/lib/utils';
-import type { BookingWithDetails, OrganizerInquiry } from '@/types';
+import type { BookingWithDetails, OrganizerInquiry, VibeEvent } from '@/types';
+import CreateEventModal from '@/components/CreateEventModal';
 
 const statusStyles: Record<string, string> = {
   confirmed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
@@ -19,9 +20,10 @@ const statusStyles: Record<string, string> = {
 
 interface AdminDashboardProps {
   onLogOut: () => void;
+  onCreateEvent: (event: VibeEvent) => void;
 }
 
-export default function AdminDashboard({ onLogOut }: AdminDashboardProps) {
+export default function AdminDashboard({ onLogOut, onCreateEvent }: AdminDashboardProps) {
   const [stats, setStats] = useState({ totalRevenue: 0, ticketsSold: 0, activeConcerts: 0, pendingInquiries: 0 });
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [inquiries, setInquiries] = useState<OrganizerInquiry[]>([]);
@@ -31,6 +33,13 @@ export default function AdminDashboard({ onLogOut }: AdminDashboardProps) {
     type: 'idle',
     message: '',
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const handlePublishEvent = (event: VibeEvent) => {
+    onCreateEvent(event);
+    setShowCreateModal(false);
+    loadAll();
+  };
 
   useEffect(() => {
     loadAll();
@@ -110,13 +119,22 @@ export default function AdminDashboard({ onLogOut }: AdminDashboardProps) {
             <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
             <p className="text-gray-400 text-sm mt-1">Monitor bookings, inquiries, and validate tickets</p>
           </div>
-          <button
-            onClick={onLogOut}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-purple-500/15 text-sm font-semibold transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            Log Out
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-purple-600 hover:from-rose-400 hover:to-purple-500 text-white text-sm font-bold transition-all hover:shadow-lg hover:shadow-purple-500/25"
+            >
+              <Plus className="w-4 h-4" />
+              Create Event
+            </button>
+            <button
+              onClick={onLogOut}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-purple-500/15 text-sm font-semibold transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+              Log Out
+            </button>
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -276,6 +294,14 @@ export default function AdminDashboard({ onLogOut }: AdminDashboardProps) {
           </div>
         </div>
       </div>
+
+      {/* Create Event Modal */}
+      {showCreateModal && (
+        <CreateEventModal
+          onClose={() => setShowCreateModal(false)}
+          onPublish={handlePublishEvent}
+        />
+      )}
     </div>
   );
 }

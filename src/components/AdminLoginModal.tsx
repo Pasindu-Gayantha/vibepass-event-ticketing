@@ -96,13 +96,6 @@ export default function AdminLoginModal({ onClose, onSuccess }: AdminLoginModalP
             </div>
           </div>
 
-          {/* Hint */}
-          <div className="text-xs text-gray-600 bg-purple-500/5 border border-purple-500/10 rounded-lg px-3 py-2">
-            <span className="text-gray-500">Demo credentials:</span>{' '}
-            <span className="text-purple-400">admin@vibepass.lk</span> /{' '}
-            <span className="text-rose-400">Admin@2026</span>
-          </div>
-
           {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 
           <button

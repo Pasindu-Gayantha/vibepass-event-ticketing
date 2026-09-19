@@ -1,61 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { X, Download, Ticket, Loader2, Calendar, MapPin } from 'lucide-react';
-import { fetchAllBookings } from '@/lib/data';
+import { X, Download, Ticket, Calendar, MapPin } from 'lucide-react';
 import { formatLKR, formatDateFull } from '@/lib/utils';
 import type { BookingWithDetails } from '@/types';
 
 interface MyTicketsDrawerProps {
   onClose: () => void;
   refreshKey: number;
+  sessionTickets: BookingWithDetails[];
 }
 
-export default function MyTicketsDrawer({ onClose, refreshKey }: MyTicketsDrawerProps) {
-  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadBookings();
-  }, [refreshKey]);
-
-  const loadBookings = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchAllBookings();
-      setBookings(data);
-    } catch (e) {
-      console.error('Failed to load bookings', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function MyTicketsDrawer({ onClose, sessionTickets }: MyTicketsDrawerProps) {
+  const [printingId, setPrintingId] = useState<string | null>(null);
 
   const handleDownload = (b: BookingWithDetails) => {
-    const content = [
-      '═══════════════════════════════════',
-      '         VIBEPASS - DIGITAL TICKET',
-      '═══════════════════════════════════',
-      '',
-      `Booking ID: ${b.booking_ref}`,
-      `Event: ${b.event?.title || '-'}`,
-      `Date: ${b.event ? formatDateFull(b.event.event_date) : '-'}`,
-      `Venue: ${b.event?.venue || '-'}, ${b.event?.venue || ''}`,
-      `Tier: ${b.tier?.name || '-'}`,
-      `Quantity: ${b.quantity}`,
-      `Customer: ${b.customer_name}`,
-      `Total Paid: ${formatLKR(b.total_amount)}`,
-      `Status: ${b.status}`,
-      '',
-      '═══════════════════════════════════',
-    ].join('\n');
-
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `VibePass-Ticket-${b.booking_ref}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setPrintingId(b.id);
+    const ticketEl = document.getElementById(`print-ticket-${b.id}`);
+    if (ticketEl) {
+      ticketEl.classList.add('print-ticket');
+      window.print();
+      setTimeout(() => {
+        ticketEl.classList.remove('print-ticket');
+        setPrintingId(null);
+      }, 500);
+    } else {
+      setPrintingId(null);
+    }
   };
 
   const statusStyles: Record<string, string> = {
@@ -76,9 +46,11 @@ export default function MyTicketsDrawer({ onClose, refreshKey }: MyTicketsDrawer
           <div className="flex items-center gap-2">
             <Ticket className="w-5 h-5 text-rose-400" />
             <h2 className="text-white font-bold text-lg">My Tickets</h2>
-            <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs font-semibold">
-              {bookings.length}
-            </span>
+            {sessionTickets.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 to-purple-600 text-white text-xs font-bold">
+                {sessionTickets.length}
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -90,22 +62,38 @@ export default function MyTicketsDrawer({ onClose, refreshKey }: MyTicketsDrawer
 
         {/* Content */}
         <div className="p-5 space-y-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 text-rose-400 animate-spin" />
-            </div>
-          ) : bookings.length === 0 ? (
+          {sessionTickets.length === 0 ? (
             <div className="text-center py-20">
               <Ticket className="w-12 h-12 text-gray-700 mx-auto mb-4" />
               <p className="text-gray-500 text-lg">No tickets booked yet.</p>
               <p className="text-gray-600 text-sm mt-1">Your booked passes will appear here.</p>
             </div>
           ) : (
-            bookings.map((b) => (
+            sessionTickets.map((b) => (
               <div
                 key={b.id}
                 className="rounded-2xl border border-purple-500/20 bg-white/[0.03] overflow-hidden"
               >
+                {/* Hidden printable ticket */}
+                <div id={`print-ticket-${b.id}`} className="hidden">
+                  <div className="p-8 bg-white text-black">
+                    <h1 className="text-2xl font-bold text-purple-600 mb-1">VibePass</h1>
+                    <p className="text-gray-500 text-sm mb-4">Digital Concert Ticket</p>
+                    <div className="border-t border-b border-gray-300 py-4 my-4 space-y-1 text-sm">
+                      <p><strong>Event:</strong> {b.event?.title || '-'}</p>
+                      <p><strong>Date:</strong> {b.event ? formatDateFull(b.event.event_date) : '-'}</p>
+                      <p><strong>Venue:</strong> {b.event?.venue || '-'}</p>
+                      <p><strong>Tier:</strong> {b.tier?.name || '-'}</p>
+                      <p><strong>Quantity:</strong> {b.quantity}</p>
+                      <p><strong>Customer:</strong> {b.customer_name}</p>
+                      <p><strong>Booking ID:</strong> {b.booking_ref}</p>
+                      <p><strong>Total Paid:</strong> {formatLKR(b.total_amount)}</p>
+                      <p><strong>Status:</strong> {b.status}</p>
+                    </div>
+                    <p className="text-xs text-gray-400">Present this ticket at the entrance. Valid ID required.</p>
+                  </div>
+                </div>
+
                 {/* Ticket header */}
                 <div className="p-4 flex items-start gap-3">
                   {b.event?.banner_url && (
@@ -152,9 +140,10 @@ export default function MyTicketsDrawer({ onClose, refreshKey }: MyTicketsDrawer
                 <div className="p-3 border-t border-purple-500/10">
                   <button
                     onClick={() => handleDownload(b)}
-                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-medium transition-all"
+                    disabled={printingId === b.id}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-medium transition-all disabled:opacity-60"
                   >
-                    <Download className="w-4 h-4" /> Download
+                    <Download className="w-4 h-4" /> {printingId === b.id ? 'Preparing...' : 'Download Ticket (PDF)'}
                   </button>
                 </div>
               </div>

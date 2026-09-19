@@ -1,16 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
-import { AudioLines, Menu, X, ChevronDown, Ticket, Lock, Home, Tag, Music } from 'lucide-react';
+import { AudioLines, Menu, X, ChevronDown, Ticket, Lock, Home, Tag, Music, LogIn } from 'lucide-react';
+import type { User } from '@/types';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 export type NavView = 'home' | 'admin' | 'organizer' | 'offers';
 
 interface NavbarProps {
   view: NavView;
   isAdmin: boolean;
+  user: User | null;
   ticketCount: number;
   onNavigate: (view: NavView) => void;
   onCategorySelect: (category: string) => void;
   onMyTickets: () => void;
   onAdminAccess: () => void;
+  onShowAuth: () => void;
+  onLogOut: () => void;
+  onEditProfile: () => void;
 }
 
 const eventDropdownItems = [
@@ -23,11 +29,15 @@ const eventDropdownItems = [
 export default function Navbar({
   view,
   isAdmin,
+  user,
   ticketCount,
   onNavigate,
   onCategorySelect,
   onMyTickets,
   onAdminAccess,
+  onShowAuth,
+  onLogOut,
+  onEditProfile,
 }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
@@ -55,7 +65,7 @@ export default function Navbar({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Brand Logo */}
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-2 group">
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-2 group flex-shrink-0">
             <div className="relative">
               <div className="absolute inset-0 bg-purple-500/30 blur-lg group-hover:bg-purple-500/50 transition-all" />
               <AudioLines className="w-7 h-7 text-rose-400 relative z-10" strokeWidth={2.5} />
@@ -102,18 +112,20 @@ export default function Navbar({
               )}
             </div>
 
-            {/* My Tickets */}
-            <button
-              onClick={onMyTickets}
-              className="relative px-3 py-2 text-sm font-medium rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 flex items-center gap-1"
-            >
-              <Ticket className="w-4 h-4" /> My Tickets
-              {ticketCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-600 text-white text-[10px] font-bold flex items-center justify-center shadow-lg shadow-purple-500/25">
-                  {ticketCount}
-                </span>
-              )}
-            </button>
+            {/* My Tickets — only when logged in */}
+            {user && (
+              <button
+                onClick={onMyTickets}
+                className="relative px-3 py-2 text-sm font-medium rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 flex items-center gap-1"
+              >
+                <Ticket className="w-4 h-4" /> My Tickets
+                {ticketCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-600 text-white text-[10px] font-bold flex items-center justify-center shadow-lg shadow-purple-500/25">
+                    {ticketCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             <button
               onClick={() => onNavigate('offers')}
@@ -136,9 +148,10 @@ export default function Navbar({
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
+            {/* Admin Access */}
             <button
               onClick={onAdminAccess}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 isAdmin
                   ? 'bg-gradient-to-r from-rose-500 to-purple-600 text-white shadow-lg shadow-purple-500/25'
                   : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-purple-500/20'
@@ -147,6 +160,26 @@ export default function Navbar({
               <Lock className="w-4 h-4" />
               <span className="hidden sm:inline">{isAdmin ? 'Admin' : 'Admin Access'}</span>
             </button>
+
+            {/* User Auth — Log In button or Profile Avatar */}
+            {user ? (
+              <UserProfileDropdown
+                user={user}
+                ticketCount={ticketCount}
+                onMyTickets={onMyTickets}
+                onEditProfile={onEditProfile}
+                onLogOut={onLogOut}
+              />
+            ) : (
+              <button
+                onClick={onShowAuth}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-gradient-to-r from-rose-500 to-purple-600 hover:from-rose-400 hover:to-purple-500 text-white transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/25"
+              >
+                <LogIn className="w-4 h-4" />
+                <span className="hidden sm:inline">Log In / Sign Up</span>
+              </button>
+            )}
+
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="lg:hidden text-gray-300 hover:text-white p-2"
@@ -177,17 +210,19 @@ export default function Navbar({
                 {item.label}
               </button>
             ))}
-            <button
-              onClick={() => { onMyTickets(); setMobileOpen(false); }}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all"
-            >
-              <span className="flex items-center gap-2"><Ticket className="w-4 h-4" /> My Tickets</span>
-              {ticketCount > 0 && (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-600 text-white text-[10px] font-bold flex items-center justify-center">
-                  {ticketCount}
-                </span>
-              )}
-            </button>
+            {user && (
+              <button
+                onClick={() => { onMyTickets(); setMobileOpen(false); }}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <span className="flex items-center gap-2"><Ticket className="w-4 h-4" /> My Tickets</span>
+                {ticketCount > 0 && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-600 text-white text-[10px] font-bold flex items-center justify-center">
+                    {ticketCount}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => { onNavigate('offers'); setMobileOpen(false); }}
               className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all"
@@ -200,6 +235,30 @@ export default function Navbar({
             >
               Host an Event
             </button>
+            {!user && (
+              <button
+                onClick={() => { onShowAuth(); setMobileOpen(false); }}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold bg-gradient-to-r from-rose-500 to-purple-600 text-white transition-all"
+              >
+                <LogIn className="w-4 h-4" /> Log In / Sign Up
+              </button>
+            )}
+            {user && (
+              <button
+                onClick={() => { onEditProfile(); setMobileOpen(false); }}
+                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-rose-400 hover:bg-purple-500/10 transition-all"
+              >
+                My Profile / Settings
+              </button>
+            )}
+            {user && (
+              <button
+                onClick={() => { onLogOut(); setMobileOpen(false); }}
+                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              >
+                Log Out
+              </button>
+            )}
           </div>
         </div>
       )}

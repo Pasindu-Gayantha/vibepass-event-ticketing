@@ -63,3 +63,9 @@ export interface BookingWithDetails extends Booking {
   event?: Pick<VibeEvent, 'title' | 'venue' | 'event_date' | 'banner_url'>;
   tier?: Pick<TicketTier, 'name' | 'price'>;
 }
+
+export interface User {
+  name: string;
+  email: string;
+  phone: string;
+}

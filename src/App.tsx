@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import Navbar, { type NavView } from '@/components/Navbar';
 import PromoBar from '@/components/PromoBar';
 import HomePage from '@/components/HomePage';
@@ -10,9 +11,11 @@ import AdminDashboard from '@/components/AdminDashboard';
 import AdminLoginModal from '@/components/AdminLoginModal';
 import OffersPage from '@/components/OffersPage';
 import MyTicketsDrawer from '@/components/MyTicketsDrawer';
+import UserAuthModal from '@/components/UserAuthModal';
+import EditProfileModal from '@/components/EditProfileModal';
 import Footer from '@/components/Footer';
-import { fetchEvents, fetchEventWithTiers, createBooking, generateBookingRef, fetchAllBookings } from '@/lib/data';
-import type { VibeEvent, TicketTier } from '@/types';
+import { fetchEvents, fetchEventWithTiers, createBooking, generateBookingRef } from '@/lib/data';
+import type { VibeEvent, TicketTier, User, BookingWithDetails } from '@/types';
 
 type Screen = 'main' | 'confirmation';
 
@@ -35,6 +38,63 @@ interface ConfirmationData {
   paymentMethod: string;
 }
 
+const DEMO_USER: User = {
+  name: 'Kasun Perera',
+  email: 'user@vibepass.lk',
+  phone: '0771234567',
+};
+
+const PRELOADED_DEMO_TICKETS: BookingWithDetails[] = [
+  {
+    id: 'demo-preload-1',
+    event_id: 'demo',
+    tier_id: 'demo',
+    customer_name: 'Kasun Perera',
+    email: 'user@vibepass.lk',
+    mobile: '0771234567',
+    payment_method: 'card',
+    quantity: 2,
+    subtotal: 30000,
+    discount: 0,
+    total_amount: 30000,
+    promo_code: null,
+    booking_ref: 'VP-2026-DEMO01',
+    status: 'confirmed',
+    created_at: new Date().toISOString(),
+    event: {
+      title: 'Sunset Rave Festival',
+      venue: 'Galle Face Green',
+      event_date: '2026-12-20',
+      banner_url: 'https://images.pexels.com/photos/167636/pexels-photo-167636.jpeg?auto=compress&cs=tinysrgb&w=400',
+    },
+    tier: { name: 'VIP Pass', price: 15000 },
+  },
+  {
+    id: 'demo-preload-2',
+    event_id: 'demo',
+    tier_id: 'demo',
+    customer_name: 'Kasun Perera',
+    email: 'user@vibepass.lk',
+    mobile: '0771234567',
+    payment_method: 'lankaqr',
+    quantity: 1,
+    subtotal: 8000,
+    discount: 800,
+    total_amount: 7200,
+    promo_code: 'VIBE10',
+    booking_ref: 'VP-2026-DEMO02',
+    status: 'confirmed',
+    created_at: new Date().toISOString(),
+    event: {
+      title: 'Acoustic Nights with Nathan',
+      venue: 'BMICH',
+      event_date: '2026-11-15',
+      banner_url: 'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=400',
+    },
+    tier: { name: 'Gold', price: 8000 },
+  },
+];
+
 export default function App() {
   const [view, setView] = useState<NavView>('home');
   const [screen, setScreen] = useState<Screen>('main');
@@ -46,9 +106,14 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
 
-  // My Tickets
+  // User auth
+  const [user, setUser] = useState<User | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+
+  // My Tickets — session-based tickets array
   const [showMyTickets, setShowMyTickets] = useState(false);
-  const [ticketCount, setTicketCount] = useState(0);
+  const [sessionTickets, setSessionTickets] = useState<BookingWithDetails[]>([]);
   const [ticketsRefreshKey, setTicketsRefreshKey] = useState(0);
 
   // Event detail modal
@@ -62,9 +127,13 @@ export default function App() {
   // Confirmation
   const [confirmationData, setConfirmationData] = useState<ConfirmationData | null>(null);
 
+  // Toast notification
+  const [toast, setToast] = useState<string | null>(null);
+
+  const ticketCount = sessionTickets.length;
+
   useEffect(() => {
     loadEvents();
-    loadTicketCount();
   }, []);
 
   const loadEvents = async () => {
@@ -76,15 +145,6 @@ export default function App() {
       console.error('Failed to load events', e);
     } finally {
       setEventsLoading(false);
-    }
-  };
-
-  const loadTicketCount = async () => {
-    try {
-      const bookings = await fetchAllBookings();
-      setTicketCount(bookings.length);
-    } catch {
-      setTicketCount(0);
     }
   };
 
@@ -118,6 +178,27 @@ export default function App() {
     setIsAdmin(false);
     setView('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleAuthSuccess = (u: User) => {
+    setUser(u);
+    setShowAuth(false);
+    // Preload demo tickets if this is the demo user
+    const isDemoUser = u.email.toLowerCase() === DEMO_USER.email;
+    setSessionTickets(isDemoUser ? [...PRELOADED_DEMO_TICKETS] : []);
+  };
+
+  const handleUserLogOut = () => {
+    setUser(null);
+    setSessionTickets([]);
+    if (view === 'admin' && !isAdmin) {
+      setView('home');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleProfileSave = (updated: User) => {
+    setUser(updated);
   };
 
   const handleMyTickets = () => {
@@ -173,11 +254,45 @@ export default function App() {
       paymentMethod: details.paymentMethod,
     });
 
+    // Append new ticket to session tickets for logged-in users
+    if (user) {
+      const newTicket: BookingWithDetails = {
+        id: `session-${Date.now()}`,
+        event_id: selectedEvent.id,
+        tier_id: checkoutData.tier.id,
+        customer_name: details.name,
+        email: details.email,
+        mobile: details.mobile,
+        payment_method: details.paymentMethod,
+        quantity: checkoutData.quantity,
+        subtotal: checkoutData.subtotal,
+        discount: checkoutData.discount,
+        total_amount: checkoutData.total,
+        promo_code: checkoutData.promoCode || null,
+        booking_ref: bookingRef,
+        status: 'confirmed',
+        created_at: new Date().toISOString(),
+        event: {
+          title: selectedEvent.title,
+          venue: selectedEvent.venue,
+          event_date: selectedEvent.event_date,
+          banner_url: selectedEvent.banner_url,
+        },
+        tier: { name: checkoutData.tier.name, price: checkoutData.tier.price },
+      };
+      setSessionTickets((prev) => [...prev, newTicket]);
+    }
+
     setCheckoutData(null);
     setSelectedEvent(null);
     setScreen('confirmation');
-    loadTicketCount();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCreateEvent = (event: VibeEvent) => {
+    setEvents((prev) => [...prev, event]);
+    setToast('Event published successfully!');
+    setTimeout(() => setToast(null), 3000);
   };
 
   const handleBackToEvents = () => {
@@ -193,11 +308,15 @@ export default function App() {
       <Navbar
         view={view}
         isAdmin={isAdmin}
+        user={user}
         ticketCount={ticketCount}
         onNavigate={handleNavigate}
         onCategorySelect={handleCategorySelect}
         onMyTickets={handleMyTickets}
         onAdminAccess={handleAdminAccess}
+        onShowAuth={() => setShowAuth(true)}
+        onLogOut={handleUserLogOut}
+        onEditProfile={() => setShowEditProfile(true)}
       />
 
       {view === 'home' && screen === 'main' && (
@@ -231,7 +350,7 @@ export default function App() {
       )}
 
       {view === 'organizer' && <OrganizerForm />}
-      {view === 'admin' && isAdmin && <AdminDashboard onLogOut={handleAdminLogOut} />}
+      {view === 'admin' && isAdmin && <AdminDashboard onLogOut={handleAdminLogOut} onCreateEvent={handleCreateEvent} />}
       {view === 'admin' && !isAdmin && (
         <div className="min-h-screen pt-20 flex items-center justify-center">
           <div className="text-center">
@@ -281,17 +400,43 @@ export default function App() {
         />
       )}
 
+      {/* User Auth Modal */}
+      {showAuth && (
+        <UserAuthModal
+          onClose={() => setShowAuth(false)}
+          onSuccess={handleAuthSuccess}
+        />
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfile && user && (
+        <EditProfileModal
+          user={user}
+          onClose={() => setShowEditProfile(false)}
+          onSave={handleProfileSave}
+        />
+      )}
+
       {/* My Tickets Drawer */}
       {showMyTickets && (
         <MyTicketsDrawer
           onClose={() => setShowMyTickets(false)}
           refreshKey={ticketsRefreshKey}
+          sessionTickets={sessionTickets}
         />
       )}
 
       {/* Footer */}
       {view !== 'admin' && (
         <Footer onNavigate={handleNavigate} onCategorySelect={handleCategorySelect} />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-purple-600 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 flex items-center gap-2 animate-[fadeInUp_0.3s_ease-out]">
+          <CheckCircle2 className="w-4 h-4" />
+          {toast}
+        </div>
       )}
     </div>
   );
