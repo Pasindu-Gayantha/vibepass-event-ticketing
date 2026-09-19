@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, Music, Ticket, ShieldCheck, Zap } from 'lucide-react';
+import heroBg from '../hero-bg.png';
 
 interface HeroProps {
   onSearch: (filters: { category: string; location: string; date: string }) => void;
@@ -31,8 +32,8 @@ export default function Hero({ onSearch }: HeroProps) {
       {/* Background */}
       <div className="absolute inset-0 z-0">
         <img
-          src="https://images.pexels.com/photos/20419429/pexels-photo-20419429.jpeg?auto=compress&cs=tinysrgb&w=1920"
-          alt="Concert crowd with purple lights"
+          src={heroBg}
+          alt="Concert background"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/80 via-[#0a0a0f]/90 to-[#0a0a0f]" />
@@ -43,7 +44,7 @@ export default function Hero({ onSearch }: HeroProps) {
       <div className="absolute top-1/4 left-10 w-64 h-64 bg-purple-500/15 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-rose-500/15 rounded-full blur-3xl" />
 
-      {/* Content — Full screen width container */}
+      {/* Content */}
       <div className="relative z-10 w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-10 py-20">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/20 text-rose-400 text-sm font-medium mb-6">
@@ -67,7 +68,6 @@ export default function Hero({ onSearch }: HeroProps) {
           {/* Floating Search Bar */}
           <div className="bg-[#0a0a0f]/60 backdrop-blur-xl rounded-full border border-purple-500/30 shadow-2xl shadow-purple-500/10 p-2 max-w-2xl">
             <div className="flex flex-col sm:flex-row items-stretch gap-2">
-              {/* Category */}
               <div className="flex-1 text-left">
                 <select
                   value={category}
@@ -82,7 +82,6 @@ export default function Hero({ onSearch }: HeroProps) {
 
               <div className="hidden sm:block w-px bg-purple-500/20" />
 
-              {/* Location */}
               <div className="flex-1 text-left">
                 <input
                   type="text"
@@ -95,7 +94,6 @@ export default function Hero({ onSearch }: HeroProps) {
 
               <div className="hidden sm:block w-px bg-purple-500/20" />
 
-              {/* Date */}
               <div className="flex-1 text-left">
                 <input
                   type="date"
@@ -105,7 +103,6 @@ export default function Hero({ onSearch }: HeroProps) {
                 />
               </div>
 
-              {/* Search button */}
               <button
                 onClick={handleSearch}
                 className="flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-purple-600 hover:from-rose-400 hover:to-purple-500 text-white font-bold px-6 py-2.5 rounded-full transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/25"
@@ -116,19 +113,26 @@ export default function Hero({ onSearch }: HeroProps) {
             </div>
           </div>
 
-          {/* Trust Badges */}
-          <div className="flex flex-wrap items-center gap-4 mt-6">
-            {trustBadges.map((badge) => {
+          {/* Trust Badges — Align based on Search bar */}
+          <div className="grid grid-cols-3 items-center max-w-2xl mt-6 px-3">
+            {trustBadges.map((badge, index) => {
               const Icon = badge.icon;
+              const alignment = 
+                index === 0 
+                  ? 'justify-start' 
+                  : index === 1 
+                  ? 'justify-center' 
+                  : 'justify-end';
+
               return (
                 <div
                   key={badge.label}
-                  className="flex items-center gap-2 text-sm text-gray-300"
+                  className={`flex items-center gap-2 text-xs sm:text-sm text-gray-300 ${alignment}`}
                 >
-                  <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
                     <Icon className="w-3.5 h-3.5 text-rose-400" />
                   </div>
-                  {badge.label}
+                  <span className="truncate">{badge.label}</span>
                 </div>
               );
             })}

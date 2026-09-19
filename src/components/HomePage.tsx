@@ -46,31 +46,31 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
     <div className="w-full min-h-screen">
       <Hero onSearch={handleSearch} />
 
-      {/* Trending Carousel Container - Screen එකට ගැළපෙන පරිදි පුළුල් කර ඇත */}
-      <div className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-10">
+      {/* Trending Carousel Section */}
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <TrendingCarousel events={events} onEventClick={onEventClick} />
       </div>
 
-      {/* Events Section */}
-      <section id="events-grid" className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-10 py-12 scroll-mt-20">
+      {/* Popular Events Section */}
+      <section id="events-grid" className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 scroll-mt-20">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-white mb-2">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
             {activeCategory ? activeCategory === 'Concert' ? 'Concerts' : activeCategory === 'EDM' ? 'EDM Festivals' : 'Acoustic Nights' : 'Popular Events'}
           </h2>
-          <p className="text-gray-400">Book your spot at Sri Lanka's hottest live music events</p>
+          <p className="text-gray-400 text-sm sm:text-base">Book your spot at Sri Lanka's hottest live music events</p>
         </div>
 
-        <div className="mb-8">
+        <div className="mb-10 flex justify-center">
           <CategoryPills active={activeCategory} onSelect={setActiveCategory} />
         </div>
 
         {filteredEvents.length === 0 ? (
           <div className="text-center py-20">
-            <Search className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+            <Search className="w-12 h-12 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">No events match your search. Try different filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredEvents.map((event) => (
               <EventCard key={event.id} event={event} onClick={() => onEventClick(event)} />
             ))}

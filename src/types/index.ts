@@ -1,22 +1,24 @@
-export type EventCategory = 'Concert' | 'EDM' | 'Acoustic';
-export type EventStatus = 'active' | 'sold_out' | 'cancelled';
-export type BookingStatus = 'confirmed' | 'redeemed' | 'cancelled';
+export type EventCategory = 'Concert' | 'EDM' | 'Acoustic' | 'Classical & Acoustic' | 'Rock';
+export type EventStatus = 'active' | 'published' | 'sold_out' | 'cancelled';
+export type BookingStatus = 'confirmed' | 'redeemed' | 'cancelled' | 'paid' | 'pending';
 export type PaymentMethod = 'card' | 'lankaqr';
 export type InquiryStatus = 'pending' | 'reviewing' | 'approved' | 'rejected';
 
 export interface VibeEvent {
   id: string;
   title: string;
-  category: EventCategory;
+  category: string;
+  category_id?: string;
   venue: string;
-  location: string;
+  location?: string;
   event_date: string;
   banner_url: string;
-  lineup: string[];
+  lineup?: string[];
   description: string;
-  tickets_remaining: number;
+  tickets_remaining?: number;
   starting_price: number;
   status: EventStatus;
+  is_featured?: boolean;
   created_at: string;
 }
 
@@ -24,9 +26,12 @@ export interface TicketTier {
   id: string;
   event_id: string;
   name: string;
+  tier_name?: string;
   price: number;
   available: number;
-  perks: string[];
+  available_quantity?: number;
+  total_quantity?: number;
+  perks?: string[];
 }
 
 export interface Booking {

@@ -1,20 +1,22 @@
 import { supabase } from '@/lib/supabase';
 import type { VibeEvent, TicketTier, Booking, OrganizerInquiry, BookingWithDetails } from '@/types';
 
-
+// Events සමග Categories සහ Ticket Tiers එකතු කරගෙන fetch කිරීම
 export async function fetchEvents(): Promise<VibeEvent[]> {
   const { data, error } = await supabase
     .from('events')
-    .select('*, ticket_tiers(price)')
+    .select('*, categories(name, slug), ticket_tiers(price)')
     .in('status', ['published', 'active'])
     .order('event_date', { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching events:', error);
+    throw error;
+  }
 
   return ((data ?? []) as any[]).map((e) => {
     let minPrice = Number(e.starting_price || e.price || 0);
 
-   
     if ((!minPrice || isNaN(minPrice)) && Array.isArray(e.ticket_tiers) && e.ticket_tiers.length > 0) {
       const prices = e.ticket_tiers
         .map((t: any) => Number(t.price))
@@ -24,9 +26,14 @@ export async function fetchEvents(): Promise<VibeEvent[]> {
       }
     }
 
+    const catName = e.categories?.name || 'Concert';
+
     return {
       ...e,
+      category: catName,
       starting_price: minPrice > 0 ? minPrice : 2500,
+      lineup: Array.isArray(e.lineup) ? e.lineup : [],
+      location: e.location || e.venue || 'Colombo',
     };
   }) as VibeEvent[];
 }
@@ -37,77 +44,203 @@ export async function fetchEventTiers(eventId: string): Promise<TicketTier[]> {
     .select('*')
     .eq('event_id', eventId)
     .order('price', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as TicketTier[];
+
+  if (error) {
+    console.error('Error fetching tiers:', error);
+    throw error;
+  }
+
+  return ((data ?? []) as any[]).map((t) => ({
+    ...t,
+    name: t.tier_name || t.name || 'General Admission',
+    available: t.available_quantity ?? t.available ?? 0,
+    price: Number(t.price) || 0,
+    perks: t.perks || [],
+  }));
 }
 
 export async function fetchEventWithTiers(eventId: string): Promise<{ event: VibeEvent | null; tiers: TicketTier[] }> {
-  const [eventRes, tiersRes] = await Promise.all([
-    supabase.from('events').select('*').eq('id', eventId).maybeSingle(),
-    supabase.from('ticket_tiers').select('*').eq('event_id', eventId).order('price', { ascending: true }),
+  const [eventRes, tiers] = await Promise.all([
+    supabase.from('events').select('*, categories(name)').eq('id', eventId).maybeSingle(),
+    fetchEventTiers(eventId),
   ]);
-  if (eventRes.error) throw eventRes.error;
-  if (tiersRes.error) throw tiersRes.error;
+
+  if (eventRes.error) {
+    console.error('Error fetching event with tiers:', eventRes.error);
+    throw eventRes.error;
+  }
+
+  const e = eventRes.data as any;
+  const eventObj: VibeEvent | null = e
+    ? {
+        ...e,
+        category: e.categories?.name || 'Concert',
+        starting_price: Number(e.starting_price) || 2500,
+        lineup: Array.isArray(e.lineup) ? e.lineup : [],
+        location: e.location || e.venue || 'Colombo',
+      }
+    : null;
+
   return {
-    event: (eventRes.data as VibeEvent) ?? null,
-    tiers: (tiersRes.data ?? []) as TicketTier[],
+    event: eventObj,
+    tiers,
   };
 }
+
 
 export async function createBooking(
   booking: Omit<Booking, 'id' | 'created_at' | 'status'> & { status?: string }
 ): Promise<Booking> {
-  const { data, error } = await supabase
-    .from('bookings')
-    .insert({ ...booking, status: booking.status ?? 'confirmed' })
+  const bookingRef = booking.booking_ref || generateBookingRef();
+
+  // 1. Orders table එකට ඇතුළත් කිරීම
+  const { data: orderData, error: orderError } = await supabase
+    .from('orders')
+    .insert({
+      customer_name: booking.customer_name,
+      customer_email: booking.email,
+      customer_phone: booking.mobile,
+      total_amount: booking.total_amount,
+      payment_status: 'paid',
+    })
     .select()
     .single();
-  if (error) throw error;
-  return data as Booking;
+
+  if (orderError) {
+    console.warn('Orders table fallback or insert issue:', orderError.message);
+  }
+
+  const orderId = orderData?.id;
+
+  
+  if (orderId && booking.tier_id) {
+    const ticketsToInsert = Array.from({ length: booking.quantity }).map((_, index) => ({
+      order_id: orderId,
+      tier_id: booking.tier_id,
+      ticket_hash: `${bookingRef}-${index + 1}`,
+      is_checked_in: false,
+    }));
+
+    const { error: ticketError } = await supabase.from('issued_tickets').insert(ticketsToInsert);
+    if (ticketError) {
+      console.warn('Could not insert into issued_tickets:', ticketError.message);
+    }
+  }
+
+  return {
+    id: orderId || `local-${Date.now()}`,
+    event_id: booking.event_id,
+    tier_id: booking.tier_id,
+    customer_name: booking.customer_name,
+    email: booking.email,
+    mobile: booking.mobile,
+    payment_method: booking.payment_method,
+    quantity: booking.quantity,
+    subtotal: booking.subtotal,
+    discount: booking.discount,
+    total_amount: booking.total_amount,
+    promo_code: booking.promo_code,
+    booking_ref: bookingRef,
+    status: 'confirmed',
+    created_at: new Date().toISOString(),
+  };
 }
 
 export async function fetchBookingByRef(ref: string): Promise<BookingWithDetails | null> {
   const { data, error } = await supabase
-    .from('bookings')
-    .select(
-      `*, event:events(title, venue, event_date, banner_url), tier:ticket_tiers(name, price)`
-    )
-    .eq('booking_ref', ref)
+    .from('issued_tickets')
+    .select(`
+      id,
+      ticket_hash,
+      is_checked_in,
+      order:orders(customer_name, customer_email, customer_phone, total_amount, created_at),
+      tier:ticket_tiers(tier_name, price, event:events(title, venue, event_date, banner_url))
+    `)
+    .ilike('ticket_hash', `${ref}%`)
     .maybeSingle();
-  if (error) throw error;
-  return (data as BookingWithDetails) ?? null;
+
+  if (error || !data) return null;
+
+  const item = data as any;
+  return {
+    id: item.id,
+    event_id: '',
+    tier_id: '',
+    customer_name: item.order?.customer_name || '',
+    email: item.order?.customer_email || '',
+    mobile: item.order?.customer_phone || '',
+    payment_method: 'card',
+    quantity: 1,
+    subtotal: Number(item.tier?.price) || 0,
+    discount: 0,
+    total_amount: Number(item.order?.total_amount) || 0,
+    promo_code: null,
+    booking_ref: ref,
+    status: item.is_checked_in ? 'redeemed' : 'confirmed',
+    created_at: item.order?.created_at || new Date().toISOString(),
+    event: item.tier?.event,
+    tier: {
+      name: item.tier?.tier_name,
+      price: item.tier?.price,
+    },
+  };
 }
 
 export async function fetchAllBookings(): Promise<BookingWithDetails[]> {
   const { data, error } = await supabase
-    .from('bookings')
-    .select(
-      `*, event:events(title, venue, event_date, banner_url), tier:ticket_tiers(name, price)`
-    )
+    .from('orders')
+    .select('*')
     .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as BookingWithDetails[];
+
+  if (error) return [];
+
+  return ((data ?? []) as any[]).map((o) => ({
+    id: o.id,
+    event_id: '',
+    tier_id: '',
+    customer_name: o.customer_name,
+    email: o.customer_email,
+    mobile: o.customer_phone,
+    payment_method: 'card',
+    quantity: 1,
+    subtotal: Number(o.total_amount) || 0,
+    discount: 0,
+    total_amount: Number(o.total_amount) || 0,
+    promo_code: null,
+    booking_ref: `ORD-${o.id.slice(0, 8).toUpperCase()}`,
+    status: o.payment_status === 'paid' ? 'confirmed' : 'cancelled',
+    created_at: o.created_at,
+  }));
 }
 
 export async function fetchRecentBookings(limit = 10): Promise<BookingWithDetails[]> {
-  const { data, error } = await supabase
-    .from('bookings')
-    .select(
-      `*, event:events(title, venue, event_date, banner_url), tier:ticket_tiers(name, price)`
-    )
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return (data ?? []) as BookingWithDetails[];
+  const bookings = await fetchAllBookings();
+  return bookings.slice(0, limit);
 }
+
 
 export async function fetchInquiries(): Promise<OrganizerInquiry[]> {
   const { data, error } = await supabase
     .from('organizer_inquiries')
     .select('*')
     .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as OrganizerInquiry[];
+
+  if (error) {
+    console.error('Error fetching inquiries:', error);
+    throw error;
+  }
+
+  return ((data ?? []) as any[]).map((i) => ({
+    id: i.id,
+    organizer_name: i.organizer_name,
+    email: i.contact_email,
+    phone: i.contact_phone,
+    event_concept: i.event_title,
+    expected_attendees: i.expected_attendees || 0,
+    notes: i.message,
+    status: i.status || 'pending',
+    created_at: i.created_at,
+  }));
 }
 
 export async function createInquiry(
@@ -115,11 +248,34 @@ export async function createInquiry(
 ): Promise<OrganizerInquiry> {
   const { data, error } = await supabase
     .from('organizer_inquiries')
-    .insert({ ...inquiry, status: 'pending' })
+    .insert({
+      organizer_name: inquiry.organizer_name,
+      contact_email: inquiry.email,
+      contact_phone: inquiry.phone,
+      event_title: inquiry.event_concept,
+      expected_attendees: inquiry.expected_attendees,
+      message: inquiry.notes,
+      status: 'pending',
+    })
     .select()
     .single();
-  if (error) throw error;
-  return data as OrganizerInquiry;
+
+  if (error) {
+    console.error('Error creating inquiry:', error);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    organizer_name: data.organizer_name,
+    email: data.contact_email,
+    phone: data.contact_phone,
+    event_concept: data.event_title,
+    expected_attendees: data.expected_attendees,
+    notes: data.message,
+    status: data.status,
+    created_at: data.created_at,
+  };
 }
 
 export async function updateInquiryStatus(id: string, status: string): Promise<void> {
@@ -127,6 +283,7 @@ export async function updateInquiryStatus(id: string, status: string): Promise<v
     .from('organizer_inquiries')
     .update({ status })
     .eq('id', id);
+
   if (error) throw error;
 }
 
@@ -136,23 +293,19 @@ export async function fetchAdminStats(): Promise<{
   activeConcerts: number;
   pendingInquiries: number;
 }> {
-  const [bookingsRes, eventsRes, inquiriesRes] = await Promise.all([
-    supabase.from('bookings').select('total_amount, quantity, status'),
+  const [ordersRes, eventsRes, inquiriesRes, ticketsRes] = await Promise.all([
+    supabase.from('orders').select('total_amount, payment_status'),
     supabase.from('events').select('id, status').in('status', ['published', 'active']),
     supabase.from('organizer_inquiries').select('id, status').eq('status', 'pending'),
+    supabase.from('issued_tickets').select('id', { count: 'exact' }),
   ]);
 
-  if (bookingsRes.error) throw bookingsRes.error;
-  if (eventsRes.error) throw eventsRes.error;
-  if (inquiriesRes.error) throw inquiriesRes.error;
-
-  const confirmedBookings = (bookingsRes.data ?? []).filter((b) => b.status !== 'cancelled');
-  const totalRevenue = confirmedBookings.reduce((sum, b) => sum + Number(b.total_amount), 0);
-  const ticketsSold = confirmedBookings.reduce((sum, b) => sum + b.quantity, 0);
+  const paidOrders = (ordersRes.data ?? []).filter((o) => o.payment_status === 'paid');
+  const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
   return {
     totalRevenue,
-    ticketsSold,
+    ticketsSold: ticketsRes.count ?? paidOrders.length,
     activeConcerts: eventsRes.data?.length ?? 0,
     pendingInquiries: inquiriesRes.data?.length ?? 0,
   };
@@ -160,21 +313,21 @@ export async function fetchAdminStats(): Promise<{
 
 export async function validateTicket(ref: string): Promise<{ found: boolean; status: string | null }> {
   const { data, error } = await supabase
-    .from('bookings')
-    .select('status')
-    .eq('booking_ref', ref)
+    .from('issued_tickets')
+    .select('is_checked_in')
+    .ilike('ticket_hash', `${ref}%`)
     .maybeSingle();
-  if (error) throw error;
-  if (!data) return { found: false, status: null };
-  return { found: true, status: data.status };
+
+  if (error || !data) return { found: false, status: null };
+  return { found: true, status: data.is_checked_in ? 'redeemed' : 'confirmed' };
 }
 
 export async function redeemTicket(ref: string): Promise<void> {
   const { error } = await supabase
-    .from('bookings')
-    .update({ status: 'redeemed' })
-    .eq('booking_ref', ref)
-    .eq('status', 'confirmed');
+    .from('issued_tickets')
+    .update({ is_checked_in: true })
+    .ilike('ticket_hash', `${ref}%`);
+
   if (error) throw error;
 }
 
