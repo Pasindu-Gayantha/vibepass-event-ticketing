@@ -125,6 +125,12 @@ export default function App() {
   // Checkout modal
   const [checkoutData, setCheckoutData] = useState<CheckoutData | null>(null);
 
+  // Pending checkout for unauthenticated users
+  const [pendingCheckout, setPendingCheckout] = useState<{
+    event: VibeEvent;
+    data: CheckoutData;
+  } | null>(null);
+
   // Confirmation
   const [confirmationData, setConfirmationData] = useState<ConfirmationData | null>(null);
 
@@ -186,11 +192,19 @@ export default function App() {
     setShowAuth(false);
     const isDemoUser = u.email.toLowerCase() === DEMO_USER.email;
     setSessionTickets(isDemoUser ? [...PRELOADED_DEMO_TICKETS] : []);
+
+    // Immediately opening the checkout modal upon login if there is a booking the user had previously clicked on.
+    if (pendingCheckout) {
+      setSelectedEvent(pendingCheckout.event);
+      setCheckoutData(pendingCheckout.data);
+      setPendingCheckout(null);
+    }
   };
 
   const handleUserLogOut = () => {
     setUser(null);
     setSessionTickets([]);
+    setPendingCheckout(null);
     if (view === 'admin' && !isAdmin) {
       setView('home');
     }
@@ -221,6 +235,22 @@ export default function App() {
   };
 
   const handleBook = (tier: TicketTier, quantity: number, promoCode: string, subtotal: number, discount: number, total: number) => {
+    // 1. If User not login
+    if (!user) {
+      if (selectedEvent) {
+        setPendingCheckout({
+          event: selectedEvent,
+          data: { tier, quantity, promoCode, subtotal, discount, total },
+        });
+      }
+      setSelectedEvent(null);
+      setShowAuth(true);
+      setToast('Please log in first to make a booking!');
+      setTimeout(() => setToast(null), 3500);
+      return;
+    }
+
+    // 2. If User login direct accessing to Checkout 
     setCheckoutData({ tier, quantity, promoCode, subtotal, discount, total });
   };
 
@@ -415,7 +445,10 @@ export default function App() {
           discount={checkoutData.discount}
           total={checkoutData.total}
           promoCode={checkoutData.promoCode}
-          onClose={() => setCheckoutData(null)}
+          onClose={() => {
+            setCheckoutData(null);
+            setPendingCheckout(null);
+          }}
           onConfirm={handleCheckoutConfirm}
         />
       )}
@@ -431,7 +464,10 @@ export default function App() {
       {/* User Auth Modal */}
       {showAuth && (
         <UserAuthModal
-          onClose={() => setShowAuth(false)}
+          onClose={() => {
+            setShowAuth(false);
+            setPendingCheckout(null);
+          }}
           onSuccess={handleAuthSuccess}
         />
       )}

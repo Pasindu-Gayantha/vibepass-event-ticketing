@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, CreditCard, QrCode, Loader2, User, Mail, Phone } from 'lucide-react';
-import type { TicketTier, VibeEvent } from '@/types';
+import type { TicketTier, VibeEvent, User as UserType } from '@/types';
 import { formatLKR } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 interface CheckoutModalProps {
   event: VibeEvent;
@@ -11,8 +12,9 @@ interface CheckoutModalProps {
   discount: number;
   total: number;
   promoCode: string;
+  initialUser?: UserType;
   onClose: () => void;
-  onConfirm: (details: { name: string; email: string; mobile: string; paymentMethod: 'card' | 'lankaqr' }) => Promise<void>;
+  onConfirm: (details: { name: string; email: string; mobile: string; paymentMethod: 'card' | 'lankaqr' }) => Promise<void> | void;
 }
 
 export default function CheckoutModal({
@@ -23,15 +25,36 @@ export default function CheckoutModal({
   discount,
   total,
   promoCode,
+  initialUser,
   onClose,
   onConfirm,
 }: CheckoutModalProps) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [mobile, setMobile] = useState('');
+  const [name, setName] = useState(initialUser?.name || '');
+  const [email, setEmail] = useState(initialUser?.email || '');
+  const [mobile, setMobile] = useState(initialUser?.phone || '');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'lankaqr'>('card');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // auto-filling already logged user details
+  useEffect(() => {
+    if (initialUser) {
+      setName(initialUser.name || '');
+      setEmail(initialUser.email || '');
+      setMobile(initialUser.phone || '');
+      return;
+    }
+
+    const loadUserFromSupabase = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setEmail(data.user.email || '');
+        setName(data.user.user_metadata?.full_name || data.user.user_metadata?.name || '');
+        setMobile(data.user.user_metadata?.phone || '');
+      }
+    };
+    loadUserFromSupabase();
+  }, [initialUser]);
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
@@ -65,7 +88,7 @@ export default function CheckoutModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-purple-500/15">
-          <h2 className="text-white font-bold text-lg">Guest Checkout</h2>
+          <h2 className="text-white font-bold text-lg">Checkout</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 transition-all"
@@ -112,7 +135,7 @@ export default function CheckoutModal({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
+              placeholder="Kasun Perera"
               className={`w-full bg-white/5 border rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none transition-all ${
                 errors.name ? 'border-red-500/50' : 'border-purple-500/15 focus:border-rose-500/50'
               }`}
@@ -129,7 +152,7 @@ export default function CheckoutModal({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="john@example.com"
+              placeholder="user@vibepass.lk"
               className={`w-full bg-white/5 border rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none transition-all ${
                 errors.email ? 'border-red-500/50' : 'border-purple-500/15 focus:border-rose-500/50'
               }`}
@@ -159,6 +182,7 @@ export default function CheckoutModal({
             <label className="text-gray-400 text-xs font-medium uppercase mb-2">Payment Method</label>
             <div className="space-y-2">
               <button
+                type="button"
                 onClick={() => setPaymentMethod('card')}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
                   paymentMethod === 'card'
@@ -173,6 +197,7 @@ export default function CheckoutModal({
                 }`} />
               </button>
               <button
+                type="button"
                 onClick={() => setPaymentMethod('lankaqr')}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
                   paymentMethod === 'lankaqr'
@@ -193,6 +218,7 @@ export default function CheckoutModal({
 
           {/* Pay Button */}
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-purple-600 hover:from-rose-400 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/25 disabled:opacity-60"
