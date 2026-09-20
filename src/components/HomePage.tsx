@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import type { VibeEvent } from '@/types';
 import Hero from '@/components/Hero';
@@ -17,6 +17,16 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [searchFilters, setSearchFilters] = useState({ category: '', location: '', date: '' });
 
+  // Navbar dropdown එකෙන් category එක තෝරපු ගමන් activeCategory එක sync වී scroll වීම
+  useEffect(() => {
+    setActiveCategory(initialCategory);
+    if (initialCategory) {
+      setTimeout(() => {
+        document.getElementById('events-grid')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [initialCategory]);
+
   const handleSearch = (filters: { category: string; location: string; date: string }) => {
     setSearchFilters(filters);
     setActiveCategory(filters.category);
@@ -26,18 +36,35 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
 
   const filteredEvents = useMemo(() => {
     return events.filter((e) => {
-      const cat = (e as any).category || '';
-      if (activeCategory && cat !== activeCategory) return false;
+      const cat = String((e as any).category || '').toLowerCase();
+      const catSlug = String((e as any).category_id || '').toLowerCase();
+      const selected = activeCategory.toLowerCase();
+
+      // Flexible Category Matching
+      if (selected) {
+        const isMatch =
+          cat.includes(selected) ||
+          selected.includes(cat) ||
+          catSlug.includes(selected) ||
+          (selected === 'edm' && (cat.includes('edm') || cat.includes('festival'))) ||
+          (selected === 'acoustic' && cat.includes('acoustic')) ||
+          (selected === 'concert' && cat.includes('concert'));
+
+        if (!isMatch) return false;
+      }
+
       if (searchFilters.location) {
         const loc = searchFilters.location.toLowerCase();
         const eventLoc = ((e as any).location || '').toLowerCase();
         const eventVenue = (e.venue || '').toLowerCase();
         if (!eventLoc.includes(loc) && !eventVenue.includes(loc)) return false;
       }
+
       if (searchFilters.date && e.event_date) {
         const eventDate = new Date(e.event_date).toISOString().split('T')[0];
         if (eventDate !== searchFilters.date) return false;
       }
+
       return true;
     });
   }, [events, activeCategory, searchFilters]);
@@ -46,16 +73,24 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
     <div className="w-full min-h-screen">
       <Hero onSearch={handleSearch} />
 
-      {/* Trending Carousel Section */}
+      {/* Trending Carousel - Centered max-w-7xl Container */}
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <TrendingCarousel events={events} onEventClick={onEventClick} />
       </div>
 
-      {/* Popular Events Section */}
+      {/* Popular Events Section - Balanced 4-column Grid */}
       <section id="events-grid" className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 scroll-mt-20">
         <div className="text-center mb-8">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
-            {activeCategory ? activeCategory === 'Concert' ? 'Concerts' : activeCategory === 'EDM' ? 'EDM Festivals' : 'Acoustic Nights' : 'Popular Events'}
+            {activeCategory
+              ? activeCategory === 'Concert'
+                ? 'Concerts'
+                : activeCategory === 'EDM'
+                ? 'EDM Festivals'
+                : activeCategory === 'Acoustic'
+                ? 'Acoustic Nights'
+                : activeCategory
+              : 'Popular Events'}
           </h2>
           <p className="text-gray-400 text-sm sm:text-base">Book your spot at Sri Lanka's hottest live music events</p>
         </div>

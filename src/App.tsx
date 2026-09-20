@@ -39,62 +39,8 @@ interface ConfirmationData {
   paymentMethod: string;
 }
 
-const DEMO_USER: User = {
-  name: 'Kasun Perera',
-  email: 'user@vibepass.lk',
-  phone: '0771234567',
-};
-
-const PRELOADED_DEMO_TICKETS: BookingWithDetails[] = [
-  {
-    id: 'demo-preload-1',
-    event_id: 'demo',
-    tier_id: 'demo',
-    customer_name: 'Kasun Perera',
-    email: 'user@vibepass.lk',
-    mobile: '0771234567',
-    payment_method: 'card',
-    quantity: 2,
-    subtotal: 30000,
-    discount: 0,
-    total_amount: 30000,
-    promo_code: null,
-    booking_ref: 'VP-2026-DEMO01',
-    status: 'confirmed',
-    created_at: new Date().toISOString(),
-    event: {
-      title: 'Sunset Rave Festival',
-      venue: 'Galle Face Green',
-      event_date: '2026-12-20',
-      banner_url: 'https://images.pexels.com/photos/167636/pexels-photo-167636.jpeg?auto=compress&cs=tinysrgb&w=400',
-    },
-    tier: { name: 'VIP Pass', price: 15000 },
-  },
-  {
-    id: 'demo-preload-2',
-    event_id: 'demo',
-    tier_id: 'demo',
-    customer_name: 'Kasun Perera',
-    email: 'user@vibepass.lk',
-    mobile: '0771234567',
-    payment_method: 'lankaqr',
-    quantity: 1,
-    subtotal: 8000,
-    discount: 800,
-    total_amount: 7200,
-    promo_code: 'VIBE10',
-    booking_ref: 'VP-2026-DEMO02',
-    status: 'confirmed',
-    created_at: new Date().toISOString(),
-    event: {
-      title: 'Acoustic Nights with Nathan',
-      venue: 'BMICH',
-      event_date: '2026-11-15',
-      banner_url: 'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=400',
-    },
-    tier: { name: 'Gold', price: 8000 },
-  },
-];
+// Clean Initial State: කිසිදු preloaded demo tickets එකක් අඩංගු නොවේ
+const PRELOADED_DEMO_TICKETS: BookingWithDetails[] = [];
 
 export default function App() {
   const [view, setView] = useState<NavView>('home');
@@ -190,10 +136,8 @@ export default function App() {
   const handleAuthSuccess = (u: User) => {
     setUser(u);
     setShowAuth(false);
-    const isDemoUser = u.email.toLowerCase() === DEMO_USER.email;
-    setSessionTickets(isDemoUser ? [...PRELOADED_DEMO_TICKETS] : []);
+    setSessionTickets([]);
 
-    // Immediately opening the checkout modal upon login if there is a booking the user had previously clicked on.
     if (pendingCheckout) {
       setSelectedEvent(pendingCheckout.event);
       setCheckoutData(pendingCheckout.data);
@@ -235,7 +179,6 @@ export default function App() {
   };
 
   const handleBook = (tier: TicketTier, quantity: number, promoCode: string, subtotal: number, discount: number, total: number) => {
-    // 1. If User not login
     if (!user) {
       if (selectedEvent) {
         setPendingCheckout({
@@ -250,7 +193,6 @@ export default function App() {
       return;
     }
 
-    // 2. If User login direct accessing to Checkout 
     setCheckoutData({ tier, quantity, promoCode, subtotal, discount, total });
   };
 
@@ -318,7 +260,6 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Live Supabase Sync for Admin Create Event
   const handleCreateEvent = async (event: VibeEvent) => {
     try {
       const { data, error } = await supabase
@@ -347,7 +288,6 @@ export default function App() {
       console.error('Failed to insert into Supabase:', err);
     }
 
-    // UI state updates instantly
     setEvents((prev) => [event, ...prev]);
     setToast('Event published successfully!');
     setTimeout(() => setToast(null), 3000);
