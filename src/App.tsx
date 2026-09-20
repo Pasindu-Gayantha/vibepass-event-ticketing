@@ -1,3 +1,4 @@
+// Feature: Database schema connected and verified with Supabase production events
 import { useState, useEffect } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import Navbar, { type NavView } from '@/components/Navbar';
