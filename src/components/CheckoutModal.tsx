@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, CreditCard, QrCode, Loader2, User, Mail, Phone } from 'lucide-react';
+import { X, CreditCard, QrCode, Loader2, User, Mail, Phone, Info } from 'lucide-react';
 import type { TicketTier, VibeEvent, User as UserType } from '@/types';
 import { formatLKR } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -29,28 +29,23 @@ export default function CheckoutModal({
   onClose,
   onConfirm,
 }: CheckoutModalProps) {
-  const [name, setName] = useState(initialUser?.name || '');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState(initialUser?.email || '');
-  const [mobile, setMobile] = useState(initialUser?.phone || '');
+  const [mobile, setMobile] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'lankaqr'>('card');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // auto-filling already logged user details
   useEffect(() => {
-    if (initialUser) {
-      setName(initialUser.name || '');
-      setEmail(initialUser.email || '');
-      setMobile(initialUser.phone || '');
+    if (initialUser?.email) {
+      setEmail(initialUser.email);
       return;
     }
 
     const loadUserFromSupabase = async () => {
       const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        setEmail(data.user.email || '');
-        setName(data.user.user_metadata?.full_name || data.user.user_metadata?.name || '');
-        setMobile(data.user.user_metadata?.phone || '');
+      if (data?.user?.email) {
+        setEmail(data.user.email);
       }
     };
     loadUserFromSupabase();
@@ -72,6 +67,18 @@ export default function CheckoutModal({
     setLoading(true);
     try {
       await onConfirm({ name, email, mobile, paymentMethod });
+
+      // Save redeemed promo code for the user if applied
+      if (promoCode && promoCode.trim()) {
+        const normalizedEmail = email.trim().toLowerCase();
+        const storageKey = `vibepass_used_promos_${normalizedEmail}`;
+        const existingPromos: string[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const codeUpper = promoCode.trim().toUpperCase();
+        if (!existingPromos.includes(codeUpper)) {
+          existingPromos.push(codeUpper);
+          localStorage.setItem(storageKey, JSON.stringify(existingPromos));
+        }
+      }
     } catch {
       setErrors({ submit: 'Payment failed. Please try again.' });
     } finally {
@@ -91,7 +98,7 @@ export default function CheckoutModal({
           <h2 className="text-white font-bold text-lg">Checkout</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 transition-all"
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 transition-all cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -126,6 +133,14 @@ export default function CheckoutModal({
 
         {/* Form */}
         <div className="p-5 space-y-4">
+          {/* Linked Account Notice */}
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200">
+            <Info className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+            <span>
+              The ticket will be automatically linked to your logged-in account email so you can access it anytime under <strong>My Tickets</strong>.
+            </span>
+          </div>
+
           {/* Name */}
           <div>
             <label className="text-gray-400 text-xs font-medium uppercase mb-1.5 flex items-center gap-1">
@@ -135,7 +150,7 @@ export default function CheckoutModal({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Kasun Perera"
+              placeholder="Enter customer name"
               className={`w-full bg-white/5 border rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none transition-all ${
                 errors.name ? 'border-red-500/50' : 'border-purple-500/15 focus:border-rose-500/50'
               }`}
@@ -146,16 +161,17 @@ export default function CheckoutModal({
           {/* Email */}
           <div>
             <label className="text-gray-400 text-xs font-medium uppercase mb-1.5 flex items-center gap-1">
-              <Mail className="w-3 h-3" /> Email
+              <Mail className="w-3 h-3" /> Account Email
             </label>
             <input
               type="email"
               value={email}
+              disabled={!!initialUser}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="user@vibepass.lk"
               className={`w-full bg-white/5 border rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none transition-all ${
-                errors.email ? 'border-red-500/50' : 'border-purple-500/15 focus:border-rose-500/50'
-              }`}
+                initialUser ? 'opacity-70 cursor-not-allowed border-purple-500/10' : ''
+              } ${errors.email ? 'border-red-500/50' : 'border-purple-500/15 focus:border-rose-500/50'}`}
             />
             {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
           </div>
@@ -169,7 +185,7 @@ export default function CheckoutModal({
               type="tel"
               value={mobile}
               onChange={(e) => setMobile(e.target.value)}
-              placeholder="0771234567"
+              placeholder="07XXXXXXXX"
               className={`w-full bg-white/5 border rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none transition-all ${
                 errors.mobile ? 'border-red-500/50' : 'border-purple-500/15 focus:border-rose-500/50'
               }`}
@@ -184,7 +200,7 @@ export default function CheckoutModal({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('card')}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                   paymentMethod === 'card'
                     ? 'border-rose-500/50 bg-rose-500/5'
                     : 'border-purple-500/15 bg-white/5 hover:border-purple-500/30'
@@ -199,7 +215,7 @@ export default function CheckoutModal({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('lankaqr')}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                   paymentMethod === 'lankaqr'
                     ? 'border-rose-500/50 bg-rose-500/5'
                     : 'border-purple-500/15 bg-white/5 hover:border-purple-500/30'
@@ -221,7 +237,7 @@ export default function CheckoutModal({
             type="button"
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-purple-600 hover:from-rose-400 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/25 disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-rose-500 to-purple-600 hover:from-rose-400 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/25 disabled:opacity-60 cursor-pointer"
           >
             {loading ? (
               <>
