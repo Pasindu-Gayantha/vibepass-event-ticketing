@@ -87,7 +87,7 @@ export async function fetchEventWithTiers(eventId: string): Promise<{ event: Vib
   };
 }
 
-// [M4] Create booking with 'completed' status, generate issued tickets, and decrement available ticket tier quantity
+// Create booking with 'completed' status, generate issued tickets, and decrement available ticket tier quantity
 export async function createBooking(
   booking: Omit<Booking, 'id' | 'created_at' | 'status'> & { status?: string }
 ): Promise<Booking> {
@@ -95,7 +95,7 @@ export async function createBooking(
   const orderId = crypto.randomUUID();
 
   // 1. Insert order record into the orders table with 'completed' status
-  const { data: orderData, error: orderError } = await supabase
+  const { error: orderError } = await supabase
     .from('orders')
     .insert({
       id: orderId,
@@ -339,6 +339,7 @@ export async function fetchRecentBookings(limit = 10): Promise<BookingWithDetail
   return bookings.slice(0, limit);
 }
 
+// Fetch inquiries for admin dashboard
 export async function fetchInquiries(): Promise<OrganizerInquiry[]> {
   const { data, error } = await supabase
     .from('organizer_inquiries')
@@ -347,54 +348,88 @@ export async function fetchInquiries(): Promise<OrganizerInquiry[]> {
 
   if (error) {
     console.error('Error fetching inquiries:', error);
-    throw error;
+    return [];
   }
 
   return ((data ?? []) as any[]).map((i) => ({
     id: i.id,
-    organizer_name: i.organizer_name,
-    email: i.contact_email,
-    phone: i.contact_phone,
-    event_concept: i.event_title,
-    expected_attendees: i.expected_attendees || 0,
-    notes: i.message,
+    organizer_name: i.organizer_name || '',
+    email: i.contact_email || i.email || '',
+    phone: i.contact_phone || i.phone || '',
+    event_concept: i.event_title || i.event_concept || '',
+    expected_attendees: Number(i.expected_attendees) || 0,
+    notes: i.message || i.notes || '',
     status: i.status || 'pending',
     created_at: i.created_at,
   }));
 }
 
+// Fetch organizer's submitted proposals by email
+export async function fetchProposalsByEmail(email: string): Promise<OrganizerInquiry[]> {
+  if (!email) return [];
+  const cleanEmail = email.trim().toLowerCase();
+
+  const { data, error } = await supabase
+    .from('organizer_inquiries')
+    .select('*')
+    .ilike('contact_email', cleanEmail)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching proposals by email:', error);
+    return [];
+  }
+
+  return ((data ?? []) as any[]).map((i) => ({
+    id: i.id,
+    organizer_name: i.organizer_name || '',
+    email: i.contact_email || '',
+    phone: i.contact_phone || '',
+    event_concept: i.event_title || '',
+    expected_attendees: Number(i.expected_attendees) || 0,
+    notes: i.message || '',
+    status: i.status || 'pending',
+    created_at: i.created_at,
+  }));
+}
+
+// Create new organizer proposal inquiry
 export async function createInquiry(
   inquiry: Omit<OrganizerInquiry, 'id' | 'created_at' | 'status'>
 ): Promise<OrganizerInquiry> {
-  const { data, error } = await supabase
+  const generatedId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const rowData = {
+    id: generatedId,
+    organizer_name: inquiry.organizer_name.trim(),
+    contact_email: inquiry.email.trim().toLowerCase(),
+    contact_phone: inquiry.phone.trim(),
+    event_title: inquiry.event_concept.trim(),
+    expected_attendees: parseInt(String(inquiry.expected_attendees), 10) || 100,
+    message: inquiry.notes ? inquiry.notes.trim() : null,
+    status: 'pending',
+  };
+
+  const { error } = await supabase
     .from('organizer_inquiries')
-    .insert({
-      organizer_name: inquiry.organizer_name,
-      contact_email: inquiry.email,
-      contact_phone: inquiry.phone,
-      event_title: inquiry.event_concept,
-      expected_attendees: inquiry.expected_attendees,
-      message: inquiry.notes,
-      status: 'pending',
-    })
-    .select()
-    .single();
+    .insert([rowData]);
 
   if (error) {
-    console.error('Error creating inquiry:', error);
+    console.error('Supabase createInquiry error:', error);
     throw error;
   }
 
   return {
-    id: data.id,
-    organizer_name: data.organizer_name,
-    email: data.contact_email,
-    phone: data.contact_phone,
-    event_concept: data.event_title,
-    expected_attendees: data.expected_attendees,
-    notes: data.message,
-    status: data.status,
-    created_at: data.created_at,
+    id: generatedId,
+    organizer_name: rowData.organizer_name,
+    email: rowData.contact_email,
+    phone: rowData.contact_phone,
+    event_concept: rowData.event_title,
+    expected_attendees: rowData.expected_attendees,
+    notes: rowData.message,
+    status: 'pending',
+    created_at: now,
   };
 }
 
