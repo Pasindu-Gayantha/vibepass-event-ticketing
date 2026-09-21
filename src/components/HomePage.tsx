@@ -73,13 +73,13 @@ export default function HomePage({ events, onEventClick, initialCategory = '' }:
     <div className="w-full min-h-screen">
       <Hero onSearch={handleSearch} />
 
-      {/* Trending Carousel - Centered max-w-7xl Container */}
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Trending Carousel - පළල ප්‍රමාණය ප්‍රශස්ත ලෙස සමබර කර ඇත */}
+      <div className="w-full max-w-[1620px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
         <TrendingCarousel events={events} onEventClick={onEventClick} />
       </div>
 
       {/* Popular Events Section - Balanced 4-column Grid */}
-      <section id="events-grid" className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 scroll-mt-20">
+      <section id="events-grid" className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-14 scroll-mt-20">
         <div className="text-center mb-8">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
             {activeCategory
