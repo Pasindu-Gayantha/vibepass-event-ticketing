@@ -1,17 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { X, Download, Ticket, Calendar, MapPin } from 'lucide-react';
+import { X, Download, Ticket, Calendar, MapPin, Loader2 } from 'lucide-react';
 import { formatLKR, formatDateFull } from '@/lib/utils';
+import { fetchUserTicketsByEmail } from '@/lib/data';
 import type { BookingWithDetails } from '@/types';
 
 interface MyTicketsDrawerProps {
   onClose: () => void;
   refreshKey: number;
   sessionTickets: BookingWithDetails[];
+  userEmail?: string;
 }
 
-export default function MyTicketsDrawer({ onClose, sessionTickets }: MyTicketsDrawerProps) {
+export default function MyTicketsDrawer({ onClose, sessionTickets, userEmail }: MyTicketsDrawerProps) {
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [tickets, setTickets] = useState<BookingWithDetails[]>(sessionTickets);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadTickets() {
+      if (userEmail) {
+        setLoading(true);
+        try {
+          const dbTickets = await fetchUserTicketsByEmail(userEmail);
+          // Combine both db tickets and active session tickets without duplicates
+          const map = new Map<string, BookingWithDetails>();
+          [...dbTickets, ...sessionTickets].forEach((t) => map.set(t.booking_ref, t));
+          setTickets(Array.from(map.values()));
+        } catch (err) {
+          console.error('Failed to load tickets from db:', err);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setTickets(sessionTickets);
+      }
+    }
+    loadTickets();
+  }, [userEmail, sessionTickets]);
 
   const handleDownload = (b: BookingWithDetails) => {
     setPrintingId(b.id);
@@ -46,9 +72,9 @@ export default function MyTicketsDrawer({ onClose, sessionTickets }: MyTicketsDr
           <div className="flex items-center gap-2">
             <Ticket className="w-5 h-5 text-rose-400" />
             <h2 className="text-white font-bold text-lg">My Tickets</h2>
-            {sessionTickets.length > 0 && (
+            {tickets.length > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 to-purple-600 text-white text-xs font-bold">
-                {sessionTickets.length}
+                {tickets.length}
               </span>
             )}
           </div>
@@ -62,14 +88,19 @@ export default function MyTicketsDrawer({ onClose, sessionTickets }: MyTicketsDr
 
         {/* Content */}
         <div className="p-5 space-y-4">
-          {sessionTickets.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <Loader2 className="w-8 h-8 animate-spin mb-2 text-rose-400" />
+              <p className="text-sm">Fetching your tickets...</p>
+            </div>
+          ) : tickets.length === 0 ? (
             <div className="text-center py-20">
               <Ticket className="w-12 h-12 text-gray-700 mx-auto mb-4" />
               <p className="text-gray-500 text-lg">No tickets booked yet.</p>
               <p className="text-gray-600 text-sm mt-1">Your booked passes will appear here.</p>
             </div>
           ) : (
-            sessionTickets.map((b) => (
+            tickets.map((b) => (
               <div
                 key={b.id}
                 className="rounded-2xl border border-purple-500/20 bg-white/[0.03] overflow-hidden"
