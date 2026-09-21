@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Mail, Lock, User as UserIcon, Phone, Loader2, Zap, Music } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import type { User } from '@/types';
 
 interface UserAuthModalProps {
@@ -30,16 +31,36 @@ export default function UserAuthModal({ onClose, onSuccess }: UserAuthModalProps
 
   const handleSignIn = async () => {
     setError('');
-    if (!signInEmail.trim() || !signInPassword.trim()) {
+    const email = signInEmail.trim().toLowerCase();
+    if (!email || !signInPassword.trim()) {
       setError('Please enter both email and password.');
       return;
     }
+
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 500));
-    if (signInEmail.trim().toLowerCase() === DEMO_USER.email && signInPassword === 'User@123') {
+
+    try {
+      if (email === DEMO_USER.email && signInPassword === 'User@123') {
+        // Fetch updated profile from user_profiles table if available
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('full_name, phone')
+          .ilike('email', email)
+          .maybeSingle();
+
+        const authenticatedUser: User = {
+          name: profile?.full_name || DEMO_USER.name,
+          email: DEMO_USER.email,
+          phone: profile?.phone || DEMO_USER.phone,
+        };
+
+        onSuccess(authenticatedUser);
+      } else {
+        setError('Invalid credentials. Try the Demo Login button below.');
+      }
+    } catch {
       onSuccess(DEMO_USER);
-    } else {
-      setError('Invalid credentials. Try the Demo Login button below.');
+    } finally {
       setLoading(false);
     }
   };
@@ -54,21 +75,64 @@ export default function UserAuthModal({ onClose, onSuccess }: UserAuthModalProps
       setError('Please enter a valid email address.');
       return;
     }
+
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-    onSuccess({
-      name: signUpName,
-      email: signUpEmail,
-      phone: signUpPhone || 'Not provided',
-    });
+    const email = signUpEmail.trim().toLowerCase();
+    const name = signUpName.trim();
+    const phone = signUpPhone.trim() || '0771234567';
+
+    try {
+      await supabase
+        .from('user_profiles')
+        .upsert(
+          {
+            email,
+            full_name: name,
+            phone,
+          },
+          { onConflict: 'email' }
+        );
+
+      onSuccess({
+        name,
+        email,
+        phone,
+      });
+    } catch {
+      onSuccess({
+        name,
+        email,
+        phone,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDemoLogin = async () => {
     setLoading(true);
     setSignInEmail(DEMO_USER.email);
     setSignInPassword('User@123');
-    await new Promise((r) => setTimeout(r, 400));
-    onSuccess(DEMO_USER);
+
+    try {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('full_name, phone')
+        .ilike('email', DEMO_USER.email)
+        .maybeSingle();
+
+      const authenticatedUser: User = {
+        name: profile?.full_name || DEMO_USER.name,
+        email: DEMO_USER.email,
+        phone: profile?.phone || DEMO_USER.phone,
+      };
+
+      onSuccess(authenticatedUser);
+    } catch {
+      onSuccess(DEMO_USER);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
