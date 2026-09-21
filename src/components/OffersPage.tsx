@@ -1,3 +1,4 @@
+// Update: Add notes for active promotional offers
 import { useState, useEffect } from 'react';
 import { Tag, Copy, Check, Clock, Flame, CheckCircle } from 'lucide-react';
 
